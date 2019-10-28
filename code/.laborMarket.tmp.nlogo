@@ -1,46 +1,134 @@
 extensions [matrix]
 breed [ persons person];
 breed [ companies company];
-globals[matchings unemployeds offers]
+globals[matchings unemployeds offers n-match]
 
 
-persons-own[state skills minSalary location productivity ask-sent];
-companies-own[state skillesReq effecSalary location offer-sent];
+persons-own[state skills salary location productivity ask-sent];
+companies-own[state skills salary location offer-sent];
 
 to setup
   clear-all
   setup-patches
   set unemployeds []
   set offers []
+  set n-match 3
   set matchings matrix:from-row-list [[4 3]]
-  create-persons 20 [ setxy random-xcor random-ycor
+  create-persons 100 [
+                      let x random-xcor
+                      let y random-ycor
+                      setxy  x y
                       set state "unemployed"
+                      set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
+                      set ask-sent false
+                      set salary random 10
+                      set location (list (x) (y) )
+                      set productivity random-float 1
   ]
-  create-companies 10 [ setxy random-xcor random-ycor
+  create-companies 20 [ let x random-xcor
+                        let y random-ycor
+                        setxy  x y
                         set state "vacant"
+                        set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
+                        set location  (list (x) (y) )
+                        set offer-sent false
+                        set salary random 10
   ]
   ask persons [ set shape "person"
                 set size 2
                 set color red
-                set ask-sent false ]
+                 ]
   ask companies [ set shape "factory"
                   set size 2
                   set color blue
-                  set offer-sent false]
+                  ]
   init-offers
   init-unemployeds
-  ;;show offers
-  ;;show unemployeds
+  show offers
+  show unemployeds
   reset-ticks
 end
 
 to go
-  search-job
-  send-prod
-  offer-job
-  evaluate-emp
+  match
   tick
 end
+to esimilarity[u o]
+  let sim 0
+  let sim-skills  0
+  let skillsU 0
+  let skillsO 0
+  let salaryU 0
+  let salaryO 0
+  let locationU []
+  let locationO []
+  let sim-location 0
+  let sim-salary 0
+  let uAgent  one-of turtles with [who = u]
+  let oAgent one-of turtles with [who = o]
+  ask oAgent[
+              set skillsO skills
+  ]
+  ask uAgent[
+              set skillsU skills
+  ]
+  ;; compute skills similarity
+  let i 0
+  show skillsO
+  show skillsU
+  while [i < 5][
+    let skill-o item i skillsO
+    let skill-u item i skillsU
+    set sim-skills  sim-skills + skill-o - skill-u
+    set i i + 1
+  ]
+  set sim-skills sim-skills / 5
+
+  ;; compute salary similarity
+  ask oAgent[
+              set salaryO salary
+  ]
+  ask uAgent[
+              set salaryU salary
+  ]
+  set sim-salary  ( salaryU - salaryO ) / salaryU
+
+  ;; compute location similarity
+  ask uAgent[
+              set locationU location
+  ]
+  ask oAgent[
+              set locationO location
+  ]
+
+  set sim-location ( ( item 0 locationO - item 0 locationU ) ^ 2 + ( item 1 locationO - item 1 locationU ) ^ 2 ) ^ 0.5
+  set sim-location sim-location / ( max-pxcor ^ 2 + max-pycor ^ 2 ) ^ 0.5
+  show "sim"
+  show sim-location
+
+  set sim sim-skills + sim-salary + sim-location
+  return sim
+end
+
+to match
+    let n-offers length offers
+    let n-unemployeds length unemployeds
+    ;; pick up a limited pairs of unemployeds and offers
+    let tmp-unemployeds n-of n-match unemployeds
+    let tmp-offers n-of n-match offers
+    ;;compute the similarity
+    show "tmp e"
+    show tmp-unemployeds
+    show "tmp o"
+    show tmp-offers
+    let sim-uo similarity item 0 tmp-unemployeds item 0 tmp-offers
+    let sim-ou similarity item 0 tmp-offers item 0 tmp-unemployeds
+    let similarity ( sim-uo + sim-ou ) / 2
+    show "similarity"
+    show similarity
+
+end
+
 
 to offer-job
   ask companies [
@@ -74,8 +162,8 @@ to send-prod
   let prod 0
   ask persons [
     if state = "employed" [
-        set prod random-float 1
-        show prod
+        set productivity random-float 1
+        show productivity
     ]
   ]
 end
