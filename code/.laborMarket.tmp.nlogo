@@ -58,7 +58,6 @@ to evaluate-emp
     ]
   ]
 end
-
 to search-job
   ask persons [
     if state = "unemployed" [
@@ -69,6 +68,7 @@ to search-job
       set unemployeds lput who unemployeds
       set ask-sent true
     ]
+  ]
 end
 to send-prod
   let prod 0
@@ -82,12 +82,9 @@ end
 to hired
 
 end
-
 to setup-patches
   ask patches [ set pcolor black ]
 end
-
-
 to-report matrix-add-row [matrix row-added]
   let temp-list matrix:to-row-list matrix ;; converts the matrix to a list
   set temp-list lput row-added temp-list ;; the new row is added to the list
