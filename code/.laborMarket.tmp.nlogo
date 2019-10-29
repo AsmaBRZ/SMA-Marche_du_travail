@@ -53,7 +53,7 @@ to go
   offer-job
   search-job
   send-prod
-  e
+  evaluate-emp
   match
   tick
 end
@@ -170,6 +170,7 @@ to match
      show "match"
 
     let new-match ( list  index-company best-seeker init-productivity )
+    show new-match
     set-filled index-company
     set-hired best-seeker
     ;; show new-match
@@ -238,7 +239,26 @@ to send-prod
   ask persons [
     if state = "employed" [
         set productivity random-float 1
-        show productivity
+        let i 0
+        let N length matchings
+        while [ i < N ][
+            let tmp-match item i matchings
+            let employee-id item 1 tmp-match
+            let company-id item 0 tmp-match
+            if employee-id = who [
+                ;show "old match"
+                show tmp-match
+                let new-match (list company-id employee-id productivity)
+                set matchings replace-item i matchings new-match
+                show "new-match"
+                show new-match
+                let r item i matchings
+                show r
+            ]
+
+            set i i + 1
+        ]
+
     ]
   ]
 end
