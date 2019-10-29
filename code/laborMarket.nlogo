@@ -13,8 +13,8 @@ to setup
   set unemployeds []
   set offers []
   set n-match 3
-  set matchings matrix:from-row-list [[4 3]]
-  create-persons 100 [
+  set matchings []
+  create-persons 20 [
                       let x random-xcor
                       let y random-ycor
                       setxy  x y
@@ -50,6 +50,10 @@ to setup
 end
 
 to go
+  offer-job
+  search-job
+  send-prod
+  evaluate-emp
   match
   tick
 end
@@ -114,30 +118,34 @@ to-report similarity[u o]
   set sim sim-skills + sim-salary + sim-location
   report sim
 end
-
 to match
-    show "===============================begin"
+    let old-n-match n-match
+
     let n-offers length offers
     let n-unemployeds length unemployeds
+    let new-n-match (list n-offers n-unemployeds n-match)
+    set n-match min new-n-match
     ;; pick up a limited pairs of unemployeds and offers
     let tmp-unemployeds n-of n-match unemployeds
     let tmp-offers n-of n-match offers
-    show "tmp-unemployeds"
-    show tmp-unemployeds
-    show "offers"
-    show offers
+    ;;show "tmp-unemployeds"
+    ;;show tmp-unemployeds
+    ;;show "offers"
+    ;;show tmp-offers
     ;;compute the similarity for each pair
     let  similarities []
     let i 0
     let j 0
+    let n-seekers n-match
   while [i < n-match ] ;; loop on offers
-  [ ;; for each offer, compute the best future employee
+  [ ;;show "===============================begin"
+    ;; for each offer, compute the best future employee
     set j 0
     set  similarities []
-    while [j < n-match] ;; loop on unemployed
+    while [j < n-seekers ] ;; loop on unemployed
     [
-      let sim-uo similarity item i tmp-unemployeds item j tmp-offers
-      let sim-ou similarity item j tmp-offers item i tmp-unemployeds
+      let sim-uo similarity item j tmp-unemployeds item i tmp-offers
+      let sim-ou similarity item i tmp-offers item j tmp-unemployeds
       let similar ( sim-uo + sim-ou ) / 2
       set similarities lput similar similarities
       set j j + 1
@@ -150,19 +158,54 @@ to match
     let best-seeker item index-employee-round tmp-unemployeds
     ;;show "best-seeker"
     ;;show best-seeker
-    let agent-employee one-of turtles with [who = best-seeker]
+    let agent-employee one-of persons with [who = best-seeker]
     ;;show "agent-employee"
     ;;show agent-employee
-    show "end==============================="
+    let agent-company one-of companies with [who = i]
+
+    ;; define a random productivity
+    let init-productivity random-float 1
+    let index-company item i tmp-offers
     ;;match offer - best-seeker
-    ;;let match [ offer
+     show "match"
+
+    let new-match ( list  index-company best-seeker init-productivity )
+    set-filled index-company
+    set-hired best-seeker
+    ;; show new-match
+    set matchings lput new-match matchings
+    ;;show new-match
     ;;set matchings lput matchings
+    ;; show "tmp-unemployeds"
+    set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
+
+    set index-company position index-company offers
+    set best-seeker position best-seeker unemployeds
+    set unemployeds remove-item best-seeker unemployeds
+    set offers remove-item index-company offers
+  ;;  show "unemployed"
+    ;;show unemployeds
+    ;;show "offers"
+    ;;show offers
+   ;;show "best-seeker unemployds"
+    ;;show best-seeker
+    ;;show "indexcompan offersy"
+    ;;show index-company
+    set n-seekers n-seekers - 1
+    ;; show tmp-unemployeds
+    ;; show "offers"
+    ;;show tmp-offers
+   ;; show "end==============================="
     set i i + 1
   ]
-
+  ;;show "matchings"
+  ;;show matchings
+   ;;show "unemployeds"
+    ;;show unemployeds
+    ;;show "offers"
+    ;;show offers
+  set n-match old-n-match
 end
-
-
 to offer-job
   ask companies [
     if state = "vacant" and offer-sent = false[
@@ -171,7 +214,6 @@ to offer-job
     ]
   ]
 end
-
 to evaluate-emp
   ask companies [
     if state = "filled" [
@@ -200,8 +242,33 @@ to send-prod
     ]
   ]
 end
-to hired
-
+to set-hired [i]
+   ask persons [
+    if who = i [
+        set state "employed"
+    ]
+  ]
+end
+to set-fired[i]
+   ask persons [
+    if who = i [
+        set state "unemployed"
+    ]
+  ]
+end
+to set-filled[i]
+   ask companies [
+    if who = i [
+        set state "filled"
+    ]
+  ]
+end
+to set-vacant[i]
+   ask companies [
+    if who = i [
+        set state "vacant"
+    ]
+  ]
 end
 to setup-patches
   ask patches [ set pcolor black ]
