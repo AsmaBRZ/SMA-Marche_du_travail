@@ -21,7 +21,7 @@ to setup
                       set state "unemployed"
                       set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                       set ask-sent false
-                      set salary random 10
+                      set salary 0.01 + random 10
                       set location (list (x) (y) )
                       set productivity random-float 1
   ]
@@ -32,7 +32,7 @@ to setup
                         set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                         set location  (list (x) (y) )
                         set offer-sent false
-                        set salary random 10
+                        set salary 0.01 + random 10
   ]
   ask persons [ set shape "person"
                 set size 2
@@ -53,7 +53,7 @@ to go
   match
   tick
 end
-to esimilarity[u o]
+to-report similarity[u o]
   let sim 0
   let sim-skills  0
   let skillsU 0
@@ -74,12 +74,10 @@ to esimilarity[u o]
   ]
   ;; compute skills similarity
   let i 0
-  show skillsO
-  show skillsU
   while [i < 5][
     let skill-o item i skillsO
     let skill-u item i skillsU
-    set sim-skills  sim-skills + skill-o - skill-u
+    set sim-skills  sim-skills + abs ( skill-o - skill-u )
     set i i + 1
   ]
   set sim-skills sim-skills / 5
@@ -91,7 +89,7 @@ to esimilarity[u o]
   ask uAgent[
               set salaryU salary
   ]
-  set sim-salary  ( salaryU - salaryO ) / salaryU
+  set sim-salary  ( salaryU - salaryO ) / 10
 
   ;; compute location similarity
   ask uAgent[
@@ -100,14 +98,18 @@ to esimilarity[u o]
   ask oAgent[
               set locationO location
   ]
-
   set sim-location ( ( item 0 locationO - item 0 locationU ) ^ 2 + ( item 1 locationO - item 1 locationU ) ^ 2 ) ^ 0.5
-  set sim-location sim-location / ( max-pxcor ^ 2 + max-pycor ^ 2 ) ^ 0.5
-  show "sim"
-  show sim-location
 
+  set sim-location sim-location / ( 2 * max-pxcor ^ 2 + 2 * max-pycor ^ 2 ) ^ 0.5
+
+  ;show "begin"
+  show sim-skills
+  show sim-salary
+  show sim-location
   set sim sim-skills + sim-salary + sim-location
-  return sim
+  show sim
+  show "end"
+  report sim
 end
 
 to match
@@ -116,16 +118,17 @@ to match
     ;; pick up a limited pairs of unemployeds and offers
     let tmp-unemployeds n-of n-match unemployeds
     let tmp-offers n-of n-match offers
+
     ;;compute the similarity
-    show "tmp e"
-    show tmp-unemployeds
-    show "tmp o"
-    show tmp-offers
+    ;;show tmp-unemployeds
+    ;;show tmp-offers
     let sim-uo similarity item 0 tmp-unemployeds item 0 tmp-offers
     let sim-ou similarity item 0 tmp-offers item 0 tmp-unemployeds
-    let similarity ( sim-uo + sim-ou ) / 2
+    let similar ( sim-uo + sim-ou ) / 2
     show "similarity"
-    show similarity
+    show sim-ou
+    show sim-uo
+    show similar
 
 end
 
