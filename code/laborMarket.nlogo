@@ -89,7 +89,15 @@ to-report similarity[u o]
   ask uAgent[
               set salaryU salary
   ]
-  set sim-salary  ( salaryU - salaryO ) / 10
+  let x salaryU - salaryO
+  let cote -1
+  set sim-salary  ( x + 10)  / 10
+
+  if x > 0[
+    set cote 1
+    set sim-salary  x  / 10
+  ]
+  set sim-salary  1 - sim-salary
 
   ;; compute location similarity
   ask uAgent[
@@ -100,15 +108,10 @@ to-report similarity[u o]
   ]
   set sim-location ( ( item 0 locationO - item 0 locationU ) ^ 2 + ( item 1 locationO - item 1 locationU ) ^ 2 ) ^ 0.5
 
-  set sim-location sim-location / ( 2 * max-pxcor ^ 2 + 2 * max-pycor ^ 2 ) ^ 0.5
+  set sim-location sim-location / ( ( 2 * max-pxcor ) ^ 2 +  ( 2 * max-pycor ) ^ 2 ) ^ 0.5
+  set sim-location 1 - sim-location
 
-  ;;show "begin"
-  ;;show sim-skills
-  ;;show sim-salary
-  ;;show sim-location
   set sim sim-skills + sim-salary + sim-location
-  ;;show sim
-  ;;show "end"
   report sim
 end
 
@@ -119,16 +122,26 @@ to match
     let tmp-unemployeds n-of n-match unemployeds
     let tmp-offers n-of n-match offers
 
-    ;;compute the similarity
-    ;;show tmp-unemployeds
-    ;;show tmp-offers
-    let sim-uo similarity item 0 tmp-unemployeds item 0 tmp-offers
-    let sim-ou similarity item 0 tmp-offers item 0 tmp-unemployeds
-    let similar ( sim-uo + sim-ou ) / 2
-    show "similarity"
-    show sim-ou
-    show sim-uo
-    show similar
+    ;;compute the similarity for each pair
+    let  similarities []
+    let i 0
+    let j 0
+  while [i < n-match ] ;; loop on offers
+  [ ;; for each offer, compute the best future employee
+    set j 0
+    set  similarities []
+    while [j < n-match] ;; loop on unemployed
+    [
+      let sim-uo similarity item i tmp-unemployeds item j tmp-offers
+      let sim-ou similarity item j tmp-offers item i tmp-unemployeds
+      let similar ( sim-uo + sim-ou ) / 2
+      set similarities lput similar similarities
+      set j j + 1
+    ]
+    ;; compute the max similarity to choose the best future employee for the current offer i
+    let sim-max-value max similarities
+    set i i + 1
+  ]
 
 end
 
