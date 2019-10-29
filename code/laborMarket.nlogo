@@ -116,12 +116,16 @@ to-report similarity[u o]
 end
 
 to match
+    show "===============================begin"
     let n-offers length offers
     let n-unemployeds length unemployeds
     ;; pick up a limited pairs of unemployeds and offers
     let tmp-unemployeds n-of n-match unemployeds
     let tmp-offers n-of n-match offers
-
+    show "tmp-unemployeds"
+    show tmp-unemployeds
+    show "offers"
+    show offers
     ;;compute the similarity for each pair
     let  similarities []
     let i 0
@@ -140,6 +144,19 @@ to match
     ]
     ;; compute the max similarity to choose the best future employee for the current offer i
     let sim-max-value max similarities
+    let index-employee-round position sim-max-value similarities
+    ;;show "index-employee-round"
+    ;;show index-employee-round
+    let best-seeker item index-employee-round tmp-unemployeds
+    ;;show "best-seeker"
+    ;;show best-seeker
+    let agent-employee one-of turtles with [who = best-seeker]
+    ;;show "agent-employee"
+    ;;show agent-employee
+    show "end==============================="
+    ;;match offer - best-seeker
+    ;;let match [ offer
+    ;;set matchings lput matchings
     set i i + 1
   ]
 
