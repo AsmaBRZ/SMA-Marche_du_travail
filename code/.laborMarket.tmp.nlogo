@@ -118,6 +118,7 @@ to-report similarity[u o]
   set sim sim-skills + sim-salary + sim-location
   report sim
 end
+
 to match
     let old-n-match n-match
 
@@ -135,54 +136,53 @@ to match
     let n-seekers n-match
     while [i < n-match ] ;; loop on offers
     [
-    ;; for each offer, compute the best future employee
-    set j 0
-    set  similarities []
-    while [j < n-seekers ] ;; loop on unemployed
-    [
-      let sim-uo similarity item j tmp-unemployeds item i tmp-offers
-      let sim-ou similarity item i tmp-offers item j tmp-unemployeds
-      let similar ( sim-uo + sim-ou ) / 2
-      set similarities lput similar similarities
-      set j j + 1
-    ]
-    ;; compute the max similarity to choose the best future employee for the current offer i
-    let sim-max-value max similarities
-    let index-employee-round position sim-max-value similarities
-
-    let best-seeker item index-employee-round tmp-unemployeds
-
-    let agent-employee one-of persons with [who = best-seeker]
-
-    let agent-company one-of companies with [who = i]
-
-    ;; define a random productivity
-    let init-productivity random-float 1
-    let index-company item i tmp-offers
-
-    let new-match ( list  index-company best-seeker init-productivity )
-
-    set-filled index-company
-    set-hired best-seeker
-
-    ifelse[sim-max-value > threshold-matching ][
-    [  set matchings lput new-match matchings
-
-      set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
-
-      set index-company position index-company offers
-      set best-seeker position best-seeker unemployeds
-      set unemployeds remove-item best-seeker unemployeds
-      set offers remove-item index-company offers
-
-      set n-seekers n-seekers - 1
-     ]
+      ;; for each offer, compute the best future employee
+      set j 0
+      set  similarities []
+      while [j < n-seekers ] ;; loop on unemployed
       [
+        let sim-uo similarity item j tmp-unemployeds item i tmp-offers
+        let sim-ou similarity item i tmp-offers item j tmp-unemployeds
+        let similar ( sim-uo + sim-ou ) / 2
+        set similarities lput similar similarities
+        set j j + 1
       ]
-    set i i + 1
-  ]
+      ;; compute the max similarity to choose the best future employee for the current offer i
+      let sim-max-value max similarities
+      let index-employee-round position sim-max-value similarities
 
-  set n-match old-n-match
+      let best-seeker item index-employee-round tmp-unemployeds
+
+      let agent-employee one-of persons with [who = best-seeker]
+
+      let agent-company one-of companies with [who = i]
+
+      ;; define a random productivity
+      let init-productivity random-float 1
+      let index-company item i tmp-offers
+
+      let new-match ( list  index-company best-seeker init-productivity )
+
+      set-filled index-company
+      set-hired best-seeker
+
+      if sim-max-value > threshold-matching
+      [  set matchings lput new-match matchings
+
+        set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
+
+        set index-company position index-company offers
+        set best-seeker position best-seeker unemployeds
+        set unemployeds remove-item best-seeker unemployeds
+        set offers remove-item index-company offers
+
+        set n-seekers n-seekers - 1
+      ]
+
+      set i i + 1
+    ]
+
+    set n-match old-n-match
 end
 to offer-job
   ask companies [
@@ -397,7 +397,7 @@ n-companies
 n-companies
 0
 200
-90.0
+2.0
 1
 1
 NIL
@@ -412,7 +412,7 @@ n-persons
 n-persons
 0
 200
-38.0
+3.0
 1
 1
 NIL
@@ -478,8 +478,8 @@ SLIDER
 threshold-matching
 threshold-matching
 0
-1
-0.5
+3
+0.1
 0.1
 1
 NIL
