@@ -1,20 +1,115 @@
 extensions [matrix]
 breed [ persons person];
 breed [ companies company];
-globals[matchings unemployeds offers]
+globals[matchings unemployeds offers Us Vs current-Us maxDiff ]
 
 
 persons-own[state skills salary location productivity ask-sent];
 companies-own[state skills salary location offer-sent];
 
-to setup
-  clear-all
+
+
+to start
+  set Us []
+  set Vs []
+  if model-param[
+    set-param
+  ]
+  let i 0
+  let U0 n-persons
+  let V0 n-companies
+  show Us
+  while [i < nb-increment][
+    let j 0
+    while [j < nb-increment][
+      let x U0 + i * U-increment
+      let y V0 + j * V-increment
+
+
+      show x
+      show y
+      episode x y
+      show i
+      show j
+      set j j + 1
+    ]
+    set i i + 1
+
+  ]
+end
+to set-param
+  set nb-increment 4
+  set U-increment 100
+  set V-increment 100
+  set n-persons 100
+  set n-companies 100
+  set threshold-fired 0.5
+  set threshold-matching 1.5
+  set unexpected-fired 0.1
+  set unexpected-company-motivation 0.1
+  set unexpected-worker-motivation 0.1
+
+end
+to go
+  while[ length current-Us < 10 or maxDiff > 0.001][
+    offer-job
+    search-job
+    send-prod
+    evaluate-emp
+    match
+    compute-stability-model
+    tick
+  ]
+  let u length unemployeds
+  set u u / n-persons
+  let v length offers
+  set v v / n-persons
+
+  set Us lput u Us
+  set Vs lput v Vs
+  show Us
+  show Vs
+  do-plots
+end
+
+to compute-stability-model
+  let U length unemployeds
+  set U U / n-persons
+  set current-Us lput U current-Us
+  if length current-Us > 10 [
+    set current-Us remove-item 0 current-Us
+    let diffUs []
+    let i 0
+    while [ i < length current-Us - 1][
+      let element1 item i current-Us
+      let element2 item 9 current-Us
+      set diffUs lput  abs ( element1 - element2 ) diffUs
+      set maxDiff max diffUs
+    ]
+  ]
+
+end
+
+to do-plots
+  clear-plot
+  let m 0
+  set-current-plot-pen "pen-0"
+  while [m < length Us ]
+    [plotxy item m Us item m Vs
+    set m m + 1]
+ end
+
+
+to episode [u v]
+  clear-all-plots
+  clear-patches
+  clear-turtles
   setup-patches
   set unemployeds []
   set offers []
-  set n-match 3
-  set thershold-fired 0.7
   set matchings []
+  set n-persons u
+  set n-companies v
   create-persons n-persons [
                       let x random-xcor
                       let y random-ycor
@@ -22,7 +117,8 @@ to setup
                       set state "unemployed"
                       set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                       set ask-sent false
-                      set salary 0.01 + random 10
+                      set salary min-salary-ump + random 10
+
                       set location (list (x) (y) )
                       set productivity random-float 1
   ]
@@ -33,7 +129,8 @@ to setup
                         set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                         set location  (list (x) (y) )
                         set offer-sent false
-                        set salary 0.01 + random 10
+                        set salary min-salary-com + random 10
+
   ]
   ask persons [ set shape "person"
                 set size 2
@@ -45,18 +142,11 @@ to setup
                   ]
   init-offers
   init-unemployeds
-
+  set current-Us []
   reset-ticks
+  go
 end
 
-to go
-  offer-job
-  search-job
-  send-prod
-  evaluate-emp
-  match
-  tick
-end
 to-report similarity[u o]
   let sim 0
   let sim-skills  0
@@ -118,46 +208,76 @@ to-report similarity[u o]
   set sim sim-skills + sim-salary + sim-location
   report sim
 end
-
 to match
+    ;;show "-------------begin"
     let old-n-match n-match
+    let N n-match
 
     let n-offers length offers
     let n-unemployeds length unemployeds
-    let new-n-match (list n-offers n-unemployeds n-match)
-    set n-match min new-n-match
+
+    ;;define the number of the matches to realize
+    let new-n-match (list n-offers n-unemployeds N)
+    set N min new-n-match
+    let n-seekers  N
+
     ;; pick up a limited pairs of unemployeds and offers
-    let tmp-unemployeds n-of n-match unemployeds
-    let tmp-offers n-of n-match offers
+    let tmp-unemployeds n-of N unemployeds
+    let tmp-offers n-of N offers
+
+    ;;show "tmp-unemployeds"
+    ;;show tmp-unemployeds
+    ;;show "tmp-offers"
+    ;;show tmp-offers
 
     let  similarities []
     let i 0
     let j 0
-    let n-seekers n-match
-    while [i < n-match ] ;; loop on offers
+
+    while [i < N ] ;; loop on offers
     [
-      ;; for each offer, compute the best future employee
-      set j 0
-      set  similarities []
-      while [j < n-seekers ] ;; loop on unemployed
-      [
-        let sim-uo similarity item j tmp-unemployeds item i tmp-offers
-        let sim-ou similarity item i tmp-offers item j tmp-unemployeds
-        let similar ( sim-uo + sim-ou ) / 2
-        set similarities lput similar similarities
-        set j j + 1
+    ;; for each offer, compute the best future employee
+    set j 0
+    set  similarities []
+    ;;show "begin compute matrix of similarities"
+    while [j < n-seekers ] ;; loop on unemployed
+    [
+      let sim-uo similarity item j tmp-unemployeds item i tmp-offers
+      let sim-ou similarity item i tmp-offers item j tmp-unemployeds
+      let rand-uo random-float 1
+      let rand-ou random-float 1
+      if rand-uo < unexpected-worker-motivation [
+        ifelse sim-uo > 2 [
+          set sim-uo 3
+        ][
+          set sim-uo sim-uo + 1
+        ]
       ]
-      ;; compute the max similarity to choose the best future employee for the current offer i
-      let sim-max-value max similarities
-      let index-employee-round position sim-max-value similarities
+      if rand-ou < unexpected-company-motivation [
+        ifelse sim-ou > 2 [
+          set sim-ou 3
+        ][
+          set sim-ou sim-ou + 1
+        ]
+      ]
+      let similar ( sim-uo + sim-ou ) / 2
+      set similarities lput similar similarities
+      set j j + 1
+    ]
+    ;;show "end compute matric similarities"
 
-      let best-seeker item index-employee-round tmp-unemployeds
+    ;; compute the max similarity to choose the best future employee for the current offer i
+    let sim-max-value max similarities
+    let index-employee-round position sim-max-value similarities
 
-      let agent-employee one-of persons with [who = best-seeker]
+    let best-seeker item index-employee-round tmp-unemployeds
 
-      let agent-company one-of companies with [who = i]
+    let agent-employee one-of persons with [who = best-seeker]
 
-      ;; define a random productivity
+    let agent-company one-of companies with [who = i]
+
+    if sim-max-value > threshold-matching
+    [ ;; define a random productivity
       let init-productivity random-float 1
       let index-company item i tmp-offers
 
@@ -165,24 +285,36 @@ to match
 
       set-filled index-company
       set-hired best-seeker
+      set matchings lput new-match matchings
+      ;;show "new maaaaarch"
+      ;;show new-match
+      ;;show index-employee-round
+      ;;show i
 
-      if sim-max-value > threshold-matching
-      [  set matchings lput new-match matchings
+      set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
+      set tmp-offers remove-item i tmp-offers
 
-        set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
+      set index-company position index-company offers
+      set offers remove-item index-company offers
 
-        set index-company position index-company offers
-        set best-seeker position best-seeker unemployeds
-        set unemployeds remove-item best-seeker unemployeds
-        set offers remove-item index-company offers
+      set best-seeker position best-seeker unemployeds
+      set unemployeds remove-item best-seeker unemployeds
 
-        set n-seekers n-seekers - 1
-      ]
 
-      set i i + 1
-    ]
+      set N N - 1
+      set n-seekers n-seekers - 1
+      ;;show "matchhhhhhhhhhhhh"
+      ;;show  "tmp-unemployeds"
+      ;;show tmp-unemployeds
+      ;;show "tmp-offers"
+      ;;show tmp-offers
+     ]
 
-    set n-match old-n-match
+    set i i + 1
+  ]
+
+  set n-match old-n-match
+  ;;show "---------------end"
 end
 to offer-job
   ask companies [
@@ -203,8 +335,8 @@ to evaluate-emp
             let company-id item 0 tmp-match
             let prod item 2 tmp-match
             ifelse company-id = who [
-
-                ifelse  prod < thershold-fired [
+                let random-unexpected-fired random-float 1
+                ifelse  prod < threshold-fired or random-unexpected-fired <  unexpected-fired [
                     ;;employee is fired
                     set-fired employee-id
                     set-vacant company-id
@@ -233,22 +365,29 @@ to send-prod
 
   ask persons [
     if state = "employed" [
-        let new-productivity random-float 1
-        let i 0
-        let N length matchings
-        while [ i < N ][
-            let tmp-match item i matchings
-            let company-id item 0 tmp-match
-            let employee-id item 1 tmp-match
 
-            if employee-id = who [
-                let new-match (list company-id employee-id new-productivity)
-                set matchings replace-item i matchings new-match
-            ]
-
-            set i i + 1
+      let productivity-fluctuation random-float 0.6
+      set productivity-fluctuation productivity-fluctuation - 0.3
+      let i 0
+      let N length matchings
+      while [ i < N ][
+        let tmp-match item i matchings
+        let company-id item 0 tmp-match
+        let employee-id item 1 tmp-match
+        let old-prod item 2 tmp-match
+        let new-productivity 0
+        ifelse old-prod + productivity-fluctuation > 1[
+          set new-productivity 1
+        ][
+          set new-productivity old-prod + productivity-fluctuation
+        ]
+        if employee-id = who [
+          let new-match (list company-id employee-id new-productivity)
+          set matchings replace-item i matchings new-match
         ]
 
+        set i i + 1
+      ]
     ]
   ]
 end
@@ -313,10 +452,10 @@ to init-offers
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-751
-552
+230
+34
+771
+576
 -1
 -1
 13.0
@@ -340,12 +479,12 @@ ticks
 30.0
 
 BUTTON
-24
-37
-97
-70
+60
+10
+126
+43
 NIL
-setup
+start
 NIL
 1
 T
@@ -356,33 +495,46 @@ NIL
 NIL
 1
 
-BUTTON
-118
-37
-181
-70
-NIL
-go
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
+SLIDER
+17
+177
+189
+210
+n-match
+n-match
 0
+1000
+20.0
+1
+1
+NIL
+HORIZONTAL
 
 SLIDER
-16
-220
-188
-253
-n-match
-n-match
+18
+132
+190
+165
+n-companies
+n-companies
 0
-100
-3.0
+1000
+400.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+18
+88
+190
+121
+n-persons
+n-persons
+0
+1000
+400.0
 1
 1
 NIL
@@ -390,54 +542,24 @@ HORIZONTAL
 
 SLIDER
 17
-158
+221
 189
-191
-n-companies
-n-companies
-0
-200
-2.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-17
-97
-189
-130
-n-persons
-n-persons
-0
-200
-3.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-281
-187
-314
-thershold-fired
-thershold-fired
+254
+threshold-fired
+threshold-fired
 0
 1
-0.7
+0.5
 0.1
 1
 NIL
 HORIZONTAL
 
 PLOT
-796
-29
-1168
-275
+1499
+367
+1871
+613
 Matchings
 NIL
 NIL
@@ -452,10 +574,10 @@ PENS
 "default" 1.0 0 -5298144 true "" "plot length matchings"
 
 PLOT
-1210
-26
-1631
-356
+1475
+14
+1896
+344
 Offer - Unemployement
 NIL
 NIL
@@ -471,16 +593,165 @@ PENS
 "pen-1" 1.0 0 -2064490 true "" "plot length unemployeds"
 
 SLIDER
-9
-343
-202
-376
+8
+265
+201
+298
 threshold-matching
 threshold-matching
 0
 3
+1.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+13
+308
+195
+341
+U-increment
+U-increment
+1
+100
+100.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+19
+354
+191
+387
+V-increment
+V-increment
+0
+100
+100.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+19
+401
+191
+434
+nb-increment
+nb-increment
+1
+10
+4.0
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+786
+11
+1440
+623
+Beveridge curve
+NIL
+NIL
+11.0
+1.0
+1.0
+1.0
+true
+false
+"" ""
+PENS
+"pen-0" 1.0 2 -16050907 true "" ""
+
+SLIDER
+18
+447
+192
+480
+unexpected-fired
+unexpected-fired
+0
+1
 0.1
 0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+231
+605
+403
+638
+min-salary-ump
+min-salary-ump
+0
+10
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+484
+613
+656
+646
+min-salary-com
+min-salary-com
+0
+10
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+39
+47
+166
+80
+model-param
+model-param
+0
+1
+-1000
+
+SLIDER
+0
+493
+232
+526
+unexpected-company-motivation
+unexpected-company-motivation
+0
+0.5
+0.1
+0.05
+1
+NIL
+HORIZONTAL
+
+SLIDER
+2
+538
+227
+571
+unexpected-worker-motivation
+unexpected-worker-motivation
+0
+0.5
+0.1
+0.05
 1
 NIL
 HORIZONTAL
