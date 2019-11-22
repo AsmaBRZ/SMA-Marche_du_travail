@@ -682,7 +682,7 @@ nb-increment
 nb-increment
 1
 10
-1.0
+4.0
 1
 1
 NIL
@@ -785,7 +785,7 @@ SLIDER
 unexpected-worker-motivation
 unexpected-worker-motivation
 0
-0.5
+1
 0.1
 0.05
 1
@@ -815,7 +815,7 @@ SLIDER
 exceptionnal-matching
 exceptionnal-matching
 0
-0.2
+1
 0.05
 0.01
 1
