@@ -1,7 +1,7 @@
 extensions [matrix]
 breed [ persons person];
 breed [ companies company];
-globals[matchings unemployeds offers Us Vs current-Us maxDiff ]
+globals[matchings unemployeds offers Us Vs current-Us meanDiff ]
 
 
 persons-own[state skills salary location productivity ask-sent];
@@ -43,15 +43,18 @@ to set-param
   set V-increment 100
   set n-persons 100
   set n-companies 100
-  set threshold-fired 0.5
+  set productivity-threshold-fired 0.5
   set threshold-matching 1.5
   set unexpected-fired 0.1
   set unexpected-company-motivation 0.1
   set unexpected-worker-motivation 0.1
-
+  set n-match 20
+  set min-salary-com 0
+  set min-salary-ump 0
+  set exceptionnal-matching 0.05
 end
 to go
-  while[ length current-Us < 10 or maxDiff > 0.001][
+  while[ length current-Us < 10 or meanDiff > 0.01][
     offer-job
     search-job
     send-prod
@@ -72,27 +75,31 @@ to go
   do-plots
 end
 
+
 to compute-stability-model
   let U length unemployeds
   set U U / n-persons
   set current-Us lput U current-Us
-  if length current-Us > 10 [
-    set current-Us remove-item 0 current-Us
+  if length current-Us >= 10 [
+    if length current-Us > 10[
+      set current-Us remove-item 0 current-Us
+    ]
     let diffUs []
     let i 0
     while [ i < length current-Us - 1][
       let element1 item i current-Us
       let element2 item 9 current-Us
-      set diffUs lput  abs ( element1 - element2 ) diffUs
-      set maxDiff max diffUs
+      set diffUs lput abs ( element1 - element2 ) diffUs
+      set meanDiff sum diffUs / length diffUs
+      set i i + 1
     ]
   ]
 
 end
 
 to do-plots
-  clear-plot
   let m 0
+  set-current-plot "Beveridge curve"
   set-current-plot-pen "pen-0"
   while [m < length Us ]
     [plotxy item m Us item m Vs
@@ -117,7 +124,7 @@ to episode [u v]
                       set state "unemployed"
                       set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                       set ask-sent false
-                      set salary min-salary-ump + random 10
+                      set salary min-salary-ump + random 1
 
                       set location (list (x) (y) )
                       set productivity random-float 1
@@ -129,7 +136,7 @@ to episode [u v]
                         set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                         set location  (list (x) (y) )
                         set offer-sent false
-                        set salary min-salary-com + random 10
+                        set salary min-salary-com + random 1
 
   ]
   ask persons [ set shape "person"
@@ -147,7 +154,7 @@ to episode [u v]
   go
 end
 
-to-report similarity[u o]
+to-report similarity[u o x]
   let sim 0
   let sim-skills  0
   let skillsU 0
@@ -158,7 +165,7 @@ to-report similarity[u o]
   let locationO []
   let sim-location 0
   let sim-salary 0
-  let uAgent  one-of turtles with [who = u]
+  let uAgent one-of turtles with [who = u]
   let oAgent one-of turtles with [who = o]
   ask oAgent[
               set skillsO skills
@@ -174,7 +181,7 @@ to-report similarity[u o]
     set sim-skills  sim-skills + abs ( skill-o - skill-u )
     set i i + 1
   ]
-  set sim-skills sim-skills / 5
+  set sim-skills 1 - ( sim-skills / 5)
 
   ;; compute salary similarity
   ask oAgent[
@@ -183,15 +190,21 @@ to-report similarity[u o]
   ask uAgent[
               set salaryU salary
   ]
-  let x salaryU - salaryO
-  let cote -1
-  set sim-salary  ( x + 10)  / 10
 
-  if x > 0[
-    set cote 1
-    set sim-salary  x  / 10
+  ifelse x = 0[
+    ifelse salaryU <= salaryO[
+      set sim-salary 1
+    ][
+      set sim-salary 1 - ( (salaryU - salaryO) / salaryU )
+    ]
+  ][
+    ifelse salaryO <= salaryU[
+      set sim-salary 1
+    ][
+      set sim-salary 1 - ( (salaryO - salaryU) / salaryO )
+    ]
   ]
-  set sim-salary  1 - sim-salary
+
 
   ;; compute location similarity
   ask uAgent[
@@ -204,37 +217,42 @@ to-report similarity[u o]
 
   set sim-location sim-location / ( ( 2 * max-pxcor ) ^ 2 +  ( 2 * max-pycor ) ^ 2 ) ^ 0.5
   set sim-location 1 - sim-location
-
+  if sim-location < 0 [
+    set sim-location 0
+  ]
   set sim sim-skills + sim-salary + sim-location
+
   report sim
 end
 to match
-    ;;show "-------------begin"
-    let old-n-match n-match
-    let N n-match
 
-    let n-offers length offers
-    let n-unemployeds length unemployeds
+  let nb-hire 0
+  ;;show "-------------begin"
+  let old-n-match n-match
+  let N n-match
 
-    ;;define the number of the matches to realize
-    let new-n-match (list n-offers n-unemployeds N)
-    set N min new-n-match
-    let n-seekers  N
+  let n-offers length offers
+  let n-unemployeds length unemployeds
 
-    ;; pick up a limited pairs of unemployeds and offers
-    let tmp-unemployeds n-of N unemployeds
-    let tmp-offers n-of N offers
+  ;;define the number of the matches to realize
+  let new-n-match (list n-offers n-unemployeds N)
+  set N min new-n-match
+  let n-seekers  N
 
-    ;;show "tmp-unemployeds"
-    ;;show tmp-unemployeds
-    ;;show "tmp-offers"
-    ;;show tmp-offers
+  ;; pick up a limited pairs of unemployeds and offers
+  let tmp-unemployeds n-of N unemployeds
+  let tmp-offers n-of N offers
 
-    let  similarities []
-    let i 0
-    let j 0
+  ;;show "tmp-unemployeds"
+  ;;show tmp-unemployeds
+  ;;show "tmp-offers"
+  ;;show tmp-offers
 
-    while [i < N ] ;; loop on offers
+  let  similarities []
+  let i 0
+  let j 0
+
+  while [i < N ] ;; loop on offers
     [
     ;; for each offer, compute the best future employee
     set j 0
@@ -242,8 +260,8 @@ to match
     ;;show "begin compute matrix of similarities"
     while [j < n-seekers ] ;; loop on unemployed
     [
-      let sim-uo similarity item j tmp-unemployeds item i tmp-offers
-      let sim-ou similarity item i tmp-offers item j tmp-unemployeds
+      let sim-uo similarity item j tmp-unemployeds item i tmp-offers 0
+      let sim-ou similarity item j tmp-unemployeds item i tmp-offers 1
       let rand-uo random-float 1
       let rand-ou random-float 1
       if rand-uo < unexpected-worker-motivation [
@@ -261,6 +279,7 @@ to match
         ]
       ]
       let similar ( sim-uo + sim-ou ) / 2
+      ;;show similar
       set similarities lput similar similarities
       set j j + 1
     ]
@@ -275,9 +294,10 @@ to match
     let agent-employee one-of persons with [who = best-seeker]
 
     let agent-company one-of companies with [who = i]
-
-    if sim-max-value > threshold-matching
+    let rand-exception random-float 1
+    if sim-max-value > threshold-matching or rand-exception < exceptionnal-matching
     [ ;; define a random productivity
+      set nb-hire nb-hire + 1
       let init-productivity random-float 1
       let index-company item i tmp-offers
 
@@ -313,6 +333,9 @@ to match
     set i i + 1
   ]
 
+  set-current-plot "Hire rate"
+  set-current-plot-pen "Hire rate"
+  plot 100 * (nb-hire / n-unemployeds)
   set n-match old-n-match
   ;;show "---------------end"
 end
@@ -325,33 +348,43 @@ to offer-job
   ]
 end
 to evaluate-emp
+  let n-unemployeds length unemployeds
+  let nb-fire 0
   ask companies [
-    if state = "filled" [
-        let i 0
-        let N length matchings
-         while [ i < N ][
-            let tmp-match item i matchings
-            let employee-id item 1 tmp-match
-            let company-id item 0 tmp-match
-            let prod item 2 tmp-match
-            ifelse company-id = who [
-                let random-unexpected-fired random-float 1
-                ifelse  prod < threshold-fired or random-unexpected-fired <  unexpected-fired [
-                    ;;employee is fired
-                    set-fired employee-id
-                    set-vacant company-id
-                    set matchings remove-item i matchings
-                    set N length matchings
-                    set i 0
-                ][
-                    set i i + 1
-                 ]
-            ][
+  if state = "filled" [
+    let i 0
+    let N length matchings
+    while [ i < N ][
+      let tmp-match item i matchings
+      let employee-id item 1 tmp-match
+      let company-id item 0 tmp-match
+      let prod item 2 tmp-match
+      ifelse company-id = who [
+        let random-unexpected-fired random-float 1
+        ifelse  prod < productivity-threshold-fired or random-unexpected-fired <  unexpected-fired [
 
+            ;;employee is fired
+            set-fired employee-id
+            set-vacant company-id
+            set nb-fire nb-fire + 1
+            set matchings remove-item i matchings
+            set N length matchings
+            set i 0
+          ][
+            set i i + 1
+          ]
+        ][
           set i i + 1]
-        ]
+      ]
     ]
   ]
+  set-current-plot "Fire rate"
+  set-current-plot-pen "Fire rate"
+  let temp-nb-fire 0
+  if n-persons - n-unemployeds > 0 [
+    set temp-nb-fire nb-fire / (n-persons - n-unemployeds)
+  ]
+  plot 100 * temp-nb-fire
 end
 to search-job
   ask persons [
@@ -366,8 +399,8 @@ to send-prod
   ask persons [
     if state = "employed" [
 
-      let productivity-fluctuation random-float 0.6
-      set productivity-fluctuation productivity-fluctuation - 0.3
+      let productivity-fluctuation random-float 2 * max-productivity-fluctuation
+      set productivity-fluctuation productivity-fluctuation - max-productivity-fluctuation
       let i 0
       let N length matchings
       while [ i < N ][
@@ -375,17 +408,20 @@ to send-prod
         let company-id item 0 tmp-match
         let employee-id item 1 tmp-match
         let old-prod item 2 tmp-match
-        let new-productivity 0
-        ifelse old-prod + productivity-fluctuation > 1[
-          set new-productivity 1
-        ][
-          set new-productivity old-prod + productivity-fluctuation
-        ]
         if employee-id = who [
+          let new-productivity 0
+          ifelse old-prod + productivity-fluctuation > 1[
+            set new-productivity 1
+          ][
+            ifelse old-prod + productivity-fluctuation < 0[
+              set new-productivity 0
+            ][
+              set new-productivity old-prod + productivity-fluctuation
+            ]
           let new-match (list company-id employee-id new-productivity)
           set matchings replace-item i matchings new-match
+          ]
         ]
-
         set i i + 1
       ]
     ]
@@ -394,7 +430,7 @@ end
 to set-hired [i]
    ask persons [
     if who = i [
-        set state "employed"
+      set state "employed"
       set color green
     ]
   ]
@@ -402,8 +438,8 @@ end
 to set-fired[i]
    ask persons [
     if who = i [
-        set state "unemployed"
-        set unemployeds lput who unemployeds
+      set state "unemployed"
+      set unemployeds lput who unemployeds
       set color red
     ]
   ]
@@ -411,7 +447,7 @@ end
 to set-filled[i]
    ask companies [
     if who = i [
-        set state "filled"
+      set state "filled"
       set color pink
     ]
   ]
@@ -419,9 +455,9 @@ end
 to set-vacant[i]
    ask companies [
     if who = i [
-        set state "vacant"
+      set state "vacant"
       set color blue
-        set offers lput who offers
+      set offers lput who offers
     ]
   ]
 end
@@ -452,13 +488,13 @@ to init-offers
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-230
-34
-771
-576
+477
+271
+727
+522
 -1
 -1
-13.0
+5.90244
 1
 10
 1
@@ -496,10 +532,10 @@ NIL
 1
 
 SLIDER
-17
-177
-189
-210
+220
+61
+392
+94
 n-match
 n-match
 0
@@ -541,12 +577,12 @@ NIL
 HORIZONTAL
 
 SLIDER
-17
-221
-189
-254
-threshold-fired
-threshold-fired
+14
+174
+214
+207
+productivity-threshold-fired
+productivity-threshold-fired
 0
 1
 0.5
@@ -556,10 +592,10 @@ NIL
 HORIZONTAL
 
 PLOT
-1499
-367
-1871
-613
+1175
+19
+1547
+265
 Matchings
 NIL
 NIL
@@ -574,29 +610,29 @@ PENS
 "default" 1.0 0 -5298144 true "" "plot length matchings"
 
 PLOT
-1475
-14
-1896
-344
-Offer - Unemployement
-NIL
-NIL
+788
+16
+1149
+239
+Unemployed  rate -Vacancy rate
+time
+pourcentage
 0.0
 10.0
 0.0
 10.0
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot length offers"
-"pen-1" 1.0 0 -2064490 true "" "plot length unemployeds"
+"Vacancy rate" 1.0 0 -14439633 true "" "plot (length offers / n-persons) * 100"
+"Unemployed rate" 1.0 0 -2064490 true "" "plot (length unemployeds / n-persons) * 100"
 
 SLIDER
-8
-265
-201
-298
+5
+218
+198
+251
 threshold-matching
 threshold-matching
 0
@@ -608,10 +644,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-13
-308
-195
-341
+218
+193
+400
+226
 U-increment
 U-increment
 1
@@ -623,10 +659,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-19
-354
-191
-387
+224
+239
+396
+272
 V-increment
 V-increment
 0
@@ -638,43 +674,43 @@ NIL
 HORIZONTAL
 
 SLIDER
-19
-401
-191
-434
+224
+286
+396
+319
 nb-increment
 nb-increment
 1
 10
-4.0
+1.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-786
-11
-1440
-623
+447
+10
+780
+260
 Beveridge curve
-NIL
-NIL
-11.0
+U
+V
+0.0
 1.0
-1.0
-1.0
-true
+0.0
+4.0
 false
+true
 "" ""
 PENS
 "pen-0" 1.0 2 -16050907 true "" ""
 
 SLIDER
 18
-447
+345
 192
-480
+378
 unexpected-fired
 unexpected-fired
 0
@@ -686,30 +722,30 @@ NIL
 HORIZONTAL
 
 SLIDER
-231
-605
-403
-638
+218
+107
+390
+140
 min-salary-ump
 min-salary-ump
 0
-10
-5.0
+100
+0.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-484
-613
-656
-646
+219
+151
+391
+184
 min-salary-com
 min-salary-com
 0
-10
-5.0
+100
+0.0
 1
 1
 NIL
@@ -722,15 +758,15 @@ SWITCH
 80
 model-param
 model-param
-0
+1
 1
 -1000
 
 SLIDER
 0
-493
+391
 232
-526
+424
 unexpected-company-motivation
 unexpected-company-motivation
 0
@@ -743,9 +779,9 @@ HORIZONTAL
 
 SLIDER
 2
-538
+436
 227
-571
+469
 unexpected-worker-motivation
 unexpected-worker-motivation
 0
@@ -755,6 +791,89 @@ unexpected-worker-motivation
 1
 NIL
 HORIZONTAL
+
+SLIDER
+5
+259
+209
+292
+max-productivity-fluctuation
+max-productivity-fluctuation
+0
+1
+0.3
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+11
+303
+190
+336
+exceptionnal-matching
+exceptionnal-matching
+0
+0.2
+0.05
+0.01
+1
+NIL
+HORIZONTAL
+
+PLOT
+790
+271
+1151
+462
+Hire rate
+time
+pourcentage
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"Hire rate" 1.0 0 -13345367 true "" ""
+
+PLOT
+1177
+272
+1540
+464
+Fire rate
+time
+pourcentage
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"Fire rate" 1.0 0 -2674135 true "" ""
+
+BUTTON
+223
+10
+311
+43
+NIL
+set-param
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
