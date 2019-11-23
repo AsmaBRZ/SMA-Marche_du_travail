@@ -4,7 +4,7 @@ breed [ companies company];
 globals[matchings unemployeds offers Us Vs current-Us meanDiff ]
 
 
-persons-own[state skills salary location productivity ask-sent satisfaction];
+persons-own[state skills salary location productivity ask-sent];
 companies-own[state skills salary location offer-sent];
 
 
@@ -55,15 +55,11 @@ to set-param
 end
 to go
   while[ length current-Us < 10 or meanDiff > 0.01][
-    update-seniority
     offer-job
     search-job
-    match
-    send-productivity
-    send-satisfaction
+    send-prod
     evaluate-emp
-    evaluate-company
-    plot-seniority
+    match
     compute-stability-model
     tick
   ]
@@ -129,6 +125,7 @@ to episode [u v]
                       set skills (list (random 2) (random 2) (random 2) (random 2) (random 2))
                       set ask-sent false
                       set salary min-salary-ump + random 1
+
                       set location (list (x) (y) )
                       set productivity random-float 1
   ]
@@ -246,6 +243,11 @@ to match
   let tmp-unemployeds n-of N unemployeds
   let tmp-offers n-of N offers
 
+  ;;show "tmp-unemployeds"
+  ;;show tmp-unemployeds
+  ;;show "tmp-offers"
+  ;;show tmp-offers
+
   let  similarities []
   let i 0
   let j 0
@@ -281,7 +283,7 @@ to match
       set similarities lput similar similarities
       set j j + 1
     ]
-
+    ;;show "end compute matric similarities"
 
     ;; compute the max similarity to choose the best future employee for the current offer i
     let sim-max-value max similarities
@@ -297,15 +299,17 @@ to match
     [ ;; define a random productivity
       set nb-hire nb-hire + 1
       let init-productivity random-float 1
-      let init-satisfaction random-float 1
-      let init-seniority 0
       let index-company item i tmp-offers
 
-      let new-match ( list  index-company best-seeker init-productivity init-satisfaction init-seniority)
+      let new-match ( list  index-company best-seeker init-productivity )
 
       set-filled index-company
       set-hired best-seeker
       set matchings lput new-match matchings
+      ;;show "new maaaaarch"
+      ;;show new-match
+      ;;show index-employee-round
+      ;;show i
 
       set tmp-unemployeds remove-item  index-employee-round tmp-unemployeds
       set tmp-offers remove-item i tmp-offers
@@ -319,11 +323,14 @@ to match
 
       set N N - 1
       set n-seekers n-seekers - 1
-
+      ;;show "matchhhhhhhhhhhhh"
+      ;;show  "tmp-unemployeds"
+      ;;show tmp-unemployeds
+      ;;show "tmp-offers"
+      ;;show tmp-offers
      ]
 
     set i i + 1
-
   ]
 
   set-current-plot "Hire rate"
@@ -344,29 +351,28 @@ to evaluate-emp
   let n-unemployeds length unemployeds
   let nb-fire 0
   ask companies [
-    if state = "filled" [
-      let i 0
-      let N length matchings
-      while [ i < N ][
-        let tmp-match item i matchings
-        let employee-id item 1 tmp-match
-        let company-id item 0 tmp-match
-        let prod item 2 tmp-match
-        let seniority item 4 tmp-match
-        ifelse company-id = who [
-          let random-unexpected-fired random-float 1
-            ifelse ( prod < productivity-threshold-fired or random-unexpected-fired <  unexpected-fired ) and seniority >= min-seniority [
+  if state = "filled" [
+    let i 0
+    let N length matchings
+    while [ i < N ][
+      let tmp-match item i matchings
+      let employee-id item 1 tmp-match
+      let company-id item 0 tmp-match
+      let prod item 2 tmp-match
+      ifelse company-id = who [
+        let random-unexpected-fired random-float 1
+        ifelse  prod < productivity-threshold-fired or random-unexpected-fired <  unexpected-fired [
 
-              ;;employee is fired
-              set-fired employee-id
-              set-vacant company-id
-              set nb-fire nb-fire + 1
-              set matchings remove-item i matchings
-              set N length matchings
-              set i 0
-            ][
-              set i i + 1
-            ]
+            ;;employee is fired
+            set-fired employee-id
+            set-vacant company-id
+            set nb-fire nb-fire + 1
+            set matchings remove-item i matchings
+            set N length matchings
+            set i 0
+          ][
+            set i i + 1
+          ]
         ][
           set i i + 1]
       ]
@@ -380,49 +386,6 @@ to evaluate-emp
   ]
   plot 100 * temp-nb-fire
 end
-
-to evaluate-company
-
-  let n-unemployeds length unemployeds
-  let nb-resignation 0
-  ask persons [
-  if state = "employed" [
-    let i 0
-    let N length matchings
-    while [ i < N ][
-      let tmp-match item i matchings
-
-      let employee-id item 1 tmp-match
-      let company-id item 0 tmp-match
-      let sat item 3 tmp-match ;;satisfaction
-      ifelse employee-id = who [
-        let random-unexpected-resignation random-float 1
-        ifelse  sat < satisfaction-threshold-resignation or random-unexpected-resignation <  unexpected-resignation [
-
-            ;;the employee resigns
-            set-fired employee-id
-            set-vacant company-id
-            set nb-resignation nb-resignation + 1
-            set matchings remove-item i matchings
-            set N length matchings
-            set i 0
-          ][
-            set i i + 1
-          ]
-        ][
-          set i i + 1]
-      ]
-    ]
-  ]
-  set-current-plot "Resignation rate"
-  set-current-plot-pen "Resignation rate"
-  let temp-nb-resignation 0
-  if n-persons - n-unemployeds > 0 [
-    set temp-nb-resignation nb-resignation / (n-persons - n-unemployeds)
-  ]
-  plot 100 * temp-nb-resignation
-end
-
 to search-job
   ask persons [
     if ask-sent = false [
@@ -431,43 +394,7 @@ to search-job
     ]
   ]
 end
-to send-satisfaction
-
-  ask persons [
-    if state = "employed" [
-
-      let satisfaction-fluctuation random-float 2 * max-satisfaction-fluctuation
-      set satisfaction-fluctuation satisfaction-fluctuation - max-satisfaction-fluctuation
-      let i 0
-      let N length matchings
-      while [ i < N ][
-        let tmp-match item i matchings
-        let company-id item 0 tmp-match
-        let employee-id item 1 tmp-match
-        let old-productivity item 2 tmp-match
-        let old-satisfaction item 3 tmp-match
-        let old-seniority item 4 tmp-match
-        if employee-id = who [
-          let new-satisfaction 0
-          ifelse old-satisfaction + satisfaction-fluctuation > 1[
-            set new-satisfaction 1
-          ][
-            ifelse old-satisfaction + satisfaction-fluctuation < 0[
-              set new-satisfaction 0
-            ][
-              set new-satisfaction old-satisfaction + satisfaction-fluctuation
-            ]
-          let new-match (list company-id employee-id old-productivity new-satisfaction old-seniority)
-          set matchings replace-item i matchings new-match
-          ]
-        ]
-        set i i + 1
-      ]
-    ]
-  ]
-end
-
-to send-productivity
+to send-prod
 
   ask persons [
     if state = "employed" [
@@ -481,11 +408,6 @@ to send-productivity
         let company-id item 0 tmp-match
         let employee-id item 1 tmp-match
         let old-prod item 2 tmp-match
-        let old-satisfaction item 3 tmp-match
-        let old-seniority item 4 tmp-match
-
-        set productivity-fluctuation productivity-fluctuation + (factor-seniority + old-seniority )
-
         if employee-id = who [
           let new-productivity 0
           ifelse old-prod + productivity-fluctuation > 1[
@@ -496,7 +418,7 @@ to send-productivity
             ][
               set new-productivity old-prod + productivity-fluctuation
             ]
-          let new-match (list company-id employee-id new-productivity old-satisfaction old-seniority)
+          let new-match (list company-id employee-id new-productivity)
           set matchings replace-item i matchings new-match
           ]
         ]
@@ -505,42 +427,6 @@ to send-productivity
     ]
   ]
 end
-to update-seniority
-  let n  length matchings
-  let i 0
-  while [i < n][
-    let tmp-match item i matchings
-    let company-id item 0 tmp-match
-    let employee-id item 1 tmp-match
-    let old-prod item 2 tmp-match
-    let old-satisfaction item 3 tmp-match
-    let old-seniority item 4 tmp-match
-    let new-seniority 0
-    set new-seniority old-seniority + 1
-    let new-match (list company-id employee-id old-prod old-satisfaction new-seniority)
-    set matchings replace-item i matchings new-match
-    set i i + 1
-  ]
-end
-to plot-seniority
-  let n length matchings
-  let i 0
-  let total-seniority 0
-  while [i < n][
-    let tmp-match item i matchings
-    let seniority item 4 tmp-match
-    set total-seniority total-seniority + seniority
-    set i i + 1
-  ]
-  set-current-plot "Mean seniority"
-  set-current-plot-pen "Mean seniority"
-  ifelse n = 0[
-    plot 0
-  ][
-    plot total-seniority / n
-  ]
-end
-
 to set-hired [i]
    ask persons [
     if who = i [
@@ -602,13 +488,13 @@ to init-offers
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-456
-277
-773
-595
+477
+271
+727
+522
 -1
 -1
-7.54
+5.90244
 1
 10
 1
@@ -627,6 +513,17 @@ GRAPHICS-WINDOW
 1
 ticks
 30.0
+
+SWITCH
+0
+0
+0
+0
+NIL
+NIL
+1
+1
+-1000
 
 BUTTON
 60
@@ -669,7 +566,7 @@ n-companies
 n-companies
 0
 1000
-100.0
+400.0
 1
 1
 NIL
@@ -684,7 +581,7 @@ n-persons
 n-persons
 0
 1000
-100.0
+400.0
 1
 1
 NIL
@@ -796,7 +693,7 @@ nb-increment
 nb-increment
 1
 10
-1.0
+4.0
 1
 1
 NIL
@@ -818,7 +715,7 @@ false
 true
 "" ""
 PENS
-"pen-0" 1.0 2 -16050907 true "" ""
+"Beveridge curve" 1.0 2 -16050907 true "" ""
 
 SLIDER
 18
@@ -872,7 +769,7 @@ SWITCH
 80
 model-param
 model-param
-1
+0
 1
 -1000
 
@@ -915,7 +812,7 @@ max-productivity-fluctuation
 max-productivity-fluctuation
 0
 1
-1.0
+0.3
 0.1
 1
 NIL
@@ -988,117 +885,6 @@ NIL
 NIL
 NIL
 1
-
-SLIDER
-6
-484
-230
-517
-unexpected-resignation
-unexpected-resignation
-0
-1
-0.1
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-7
-532
-308
-565
-satisfaction-threshold-resignation
-satisfaction-threshold-resignation
-0
-1
-0.1
-0.1
-1
-NIL
-HORIZONTAL
-
-PLOT
-797
-493
-1148
-723
-Resignation rate
-time
-pourcentage
-0.0
-10.0
-0.0
-10.0
-true
-true
-"" ""
-PENS
-"Resignation rate" 1.0 0 -955883 true "" ""
-
-SLIDER
-10
-585
-261
-618
-max-satisfaction-fluctuation
-max-satisfaction-fluctuation
-0
-1
-0.3
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-224
-347
-396
-380
-min-seniority
-min-seniority
-0
-10
-3.0
-1
-1
-NIL
-HORIZONTAL
-
-PLOT
-1178
-502
-1537
-721
-Mean seniority
-time
-mean seniority
-0.0
-1.0
-0.0
-1.0
-true
-true
-"" ""
-PENS
-"Mean seniority" 1.0 0 -16777216 true "" ""
-
-SLIDER
-257
-405
-429
-438
-factor-seniority
-factor-seniority
-0
-1
-0.01
-0.01
-1
-NIL
-HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

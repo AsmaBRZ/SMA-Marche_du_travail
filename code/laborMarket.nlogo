@@ -704,7 +704,7 @@ false
 true
 "" ""
 PENS
-"pen-0" 1.0 2 -16050907 true "" ""
+"Beveridge curve" 1.0 2 -16050907 true "" ""
 
 SLIDER
 18
@@ -758,7 +758,7 @@ SWITCH
 80
 model-param
 model-param
-1
+0
 1
 -1000
 
